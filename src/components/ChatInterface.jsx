@@ -2444,9 +2444,9 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             sessionStorage.removeItem('pendingSessionId');
             
             // Trigger a project refresh to update the sidebar with the new session
-            if (window.refreshProjects) {
-              setTimeout(() => window.refreshProjects(), 500);
-            }
+            // if (window.refreshProjects) {
+            //   setTimeout(() => window.refreshProjects(), 500);
+            // }
           }
           
           // Clear persisted chat messages after successful completion
