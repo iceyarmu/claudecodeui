@@ -1163,6 +1163,17 @@ const AVAILABLE_AGENTS = [
   { id: 'pm', name: 'Product Manager', description: 'Product management and strategy', icon: '📋', command: '/BMad:agents:pm' }
 ];
 
+// Available commands list
+const AVAILABLE_COMMANDS = [
+  { id: 'draft', name: 'Draft', description: 'Execute the complete story creation workflow', icon: '📝', command: '*draft' },
+  { id: 'develop-story', name: 'Develop Story', description: 'Execute story implementation workflow', icon: '💻', command: '*develop-story' },
+  { id: 'review', name: 'Review', description: 'Execute comprehensive code review for a story', icon: '🔍', command: '*review' },
+  { id: 'create-full-stack-architecture', name: 'Create Full Stack Architecture', description: 'Design complete full-stack architecture', icon: '🏗️', command: '*create-full-stack-architecture' },
+  { id: 'document-project', name: 'Document Project', description: 'Execute comprehensive project documentation', icon: '📚', command: '*document-project' },
+  { id: 'create-prd', name: 'Create PRD', description: 'Create a new Product Requirements Document', icon: '📋', command: '*create-prd' },
+  { id: 'shard-prd', name: 'Shard PRD', description: 'Break down PRD into manageable shards', icon: '🔨', command: '*shard-prd' }
+];
+
 // ChatInterface: Main chat component with Session Protection System integration
 // 
 // Session Protection System prevents automatic project updates from interrupting active conversations:
@@ -1205,6 +1216,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const scrollContainerRef = useRef(null);
   const agentDropdownRef = useRef(null);
   const fileDropdownRef = useRef(null);
+  const commandDropdownRef = useRef(null);
   // Streaming throttle buffers
   const streamBufferRef = useRef('');
   const streamTimerRef = useRef(null);
@@ -1220,13 +1232,15 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const [filteredAgents, setFilteredAgents] = useState([]);
   const [selectedAgentIndex, setSelectedAgentIndex] = useState(-1);
   const [slashSymbolPosition, setSlashSymbolPosition] = useState(-1);
+  const [showCommandDropdown, setShowCommandDropdown] = useState(false);
+  const [filteredCommands, setFilteredCommands] = useState([]);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(-1);
+  const [asteriskSymbolPosition, setAsteriskSymbolPosition] = useState(-1);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const scrollPositionRef = useRef({ height: 0, top: 0 });
   const [showCommandMenu, setShowCommandMenu] = useState(false);
   const [slashCommands, setSlashCommands] = useState([]);
-  const [filteredCommands, setFilteredCommands] = useState([]);
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
-  const [selectedCommandIndex, setSelectedCommandIndex] = useState(-1);
   const [slashPosition, setSlashPosition] = useState(-1);
   const [visibleMessageCount, setVisibleMessageCount] = useState(100);
   const [claudeStatus, setClaudeStatus] = useState(null);
@@ -2518,9 +2532,49 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     }
   }, [input, cursorPosition]);
 
+  // Handle * symbol detection and command filtering
+  useEffect(() => {
+    const textBeforeCursor = input.slice(0, cursorPosition);
+    const lastAsteriskIndex = textBeforeCursor.lastIndexOf('*');
+    
+    if (lastAsteriskIndex !== -1) {
+      const textAfterAsterisk = textBeforeCursor.slice(lastAsteriskIndex + 1);
+      // Check if there's a space after the * symbol (which would end the command reference)
+      if (!textAfterAsterisk.includes(' ')) {
+        setAsteriskSymbolPosition(lastAsteriskIndex);
+        setShowCommandDropdown(true);
+        
+        // Filter commands based on the text after *
+        const filtered = AVAILABLE_COMMANDS.filter(cmd => 
+          cmd.name.toLowerCase().includes(textAfterAsterisk.toLowerCase()) ||
+          cmd.id.toLowerCase().includes(textAfterAsterisk.toLowerCase()) ||
+          cmd.description.toLowerCase().includes(textAfterAsterisk.toLowerCase())
+        ).slice(0, 10); // Limit to 10 results
+        
+        setFilteredCommands(filtered);
+        setSelectedCommandIndex(-1);
+      } else {
+        setShowCommandDropdown(false);
+        setAsteriskSymbolPosition(-1);
+      }
+    } else {
+      setShowCommandDropdown(false);
+      setAsteriskSymbolPosition(-1);
+    }
+  }, [input, cursorPosition]);
+
   // Handle click outside to close dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Check if click is outside command dropdown
+      if (showCommandDropdown && commandDropdownRef.current && !commandDropdownRef.current.contains(event.target)) {
+        // Also check if click is not on the textarea
+        if (textareaRef.current && !textareaRef.current.contains(event.target)) {
+          setShowCommandDropdown(false);
+          setAsteriskSymbolPosition(-1);
+        }
+      }
+      
       // Check if click is outside agent dropdown
       if (showAgentDropdown && agentDropdownRef.current && !agentDropdownRef.current.contains(event.target)) {
         // Also check if click is not on the textarea
@@ -2549,7 +2603,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [showAgentDropdown, showFileDropdown]);
+  }, [showCommandDropdown, showAgentDropdown, showFileDropdown]);
 
   // Debounced input handling
   useEffect(() => {
@@ -2891,6 +2945,38 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   };
 
   const handleKeyDown = (e) => {
+    // Handle command dropdown navigation
+    if (showCommandDropdown && filteredCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCommandIndex(prev => 
+          prev < filteredCommands.length - 1 ? prev + 1 : 0
+        );
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCommandIndex(prev => 
+          prev > 0 ? prev - 1 : filteredCommands.length - 1
+        );
+        return;
+      }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedCommandIndex >= 0) {
+          selectCommand(filteredCommands[selectedCommandIndex]);
+        } else if (filteredCommands.length > 0) {
+          selectCommand(filteredCommands[0]);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCommandDropdown(false);
+        return;
+      }
+    }
+    
     // Handle agent dropdown navigation
     if (showAgentDropdown && filteredAgents.length > 0) {
       if (e.key === 'ArrowDown') {
@@ -2956,7 +3042,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
     }
     
     // Handle Tab key for mode switching (only when dropdowns are not showing)
-    if (e.key === 'Tab' && !showFileDropdown && !showAgentDropdown) {
+    if (e.key === 'Tab' && !showFileDropdown && !showAgentDropdown && !showCommandDropdown) {
       e.preventDefault();
       const modes = ['default', 'acceptEdits', 'bypassPermissions', 'plan'];
       const currentIndex = modes.indexOf(permissionMode);
@@ -2984,6 +3070,43 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
         }
       }
       // Shift+Enter: Allow default behavior (new line)
+    }
+  };
+
+  const selectCommand = (command) => {
+    const textBeforeAsterisk = input.slice(0, asteriskSymbolPosition);
+    const textAfterAsteriskQuery = input.slice(asteriskSymbolPosition);
+    const spaceIndex = textAfterAsteriskQuery.indexOf(' ');
+    const textAfterQuery = spaceIndex !== -1 ? textAfterAsteriskQuery.slice(spaceIndex) : '';
+    
+    const newInput = textBeforeAsterisk + command.command + ' ' + textAfterQuery;
+    const newCursorPos = textBeforeAsterisk.length + command.command.length + 1;
+    
+    // Immediately ensure focus is maintained
+    if (textareaRef.current && !textareaRef.current.matches(':focus')) {
+      textareaRef.current.focus();
+    }
+    
+    // Update input and cursor position
+    setInput(newInput);
+    setCursorPosition(newCursorPos);
+    
+    // Hide dropdown
+    setShowCommandDropdown(false);
+    setAsteriskSymbolPosition(-1);
+    
+    // Set cursor position synchronously 
+    if (textareaRef.current) {
+      // Use requestAnimationFrame for smoother updates
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+          // Ensure focus is maintained
+          if (!textareaRef.current.matches(':focus')) {
+            textareaRef.current.focus();
+          }
+        }
+      });
     }
   };
 
@@ -3435,6 +3558,47 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             </div>
           )}
           
+          {/* Command dropdown - positioned outside dropzone to avoid conflicts */}
+          {showCommandDropdown && filteredCommands.length > 0 && (
+            <div ref={commandDropdownRef} className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-y-auto z-50 backdrop-blur-sm">
+              {filteredCommands.map((command, index) => (
+                <div
+                  key={command.id}
+                  className={`px-4 py-3 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0 touch-manipulation ${
+                    index === selectedCommandIndex
+                      ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                  onMouseDown={(e) => {
+                    // Prevent textarea from losing focus on mobile
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectCommand(command);
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{command.icon}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{command.name}</span>
+                        <code className="text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-mono">
+                          {command.command}
+                        </code>
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {command.description}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
           {/* Agent dropdown - positioned outside dropzone to avoid conflicts */}
           {showAgentDropdown && filteredAgents.length > 0 && (
             <div ref={agentDropdownRef} className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-y-auto z-50 backdrop-blur-sm">
@@ -3524,7 +3688,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
                 const isExpanded = e.target.scrollHeight > lineHeight * 2;
                 setIsTextareaExpanded(isExpanded);
               }}
-              placeholder="Ask Claude to help with your code... (@ for files, / for agents)"
+              placeholder="Ask Claude to help with your code... (@ files, / agents, * commands)"
               disabled={isLoading}
               rows={1}
               className="chat-input-placeholder w-full pl-12 pr-28 sm:pr-40 py-3 sm:py-4 bg-transparent rounded-2xl focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-50 resize-none min-h-[40px] sm:min-h-[56px] max-h-[40vh] sm:max-h-[300px] overflow-y-auto text-sm sm:text-base transition-all duration-200"
@@ -3623,15 +3787,15 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
           {/* Hint text */}
           <div className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2 hidden sm:block">
             {sendByCtrlEnter 
-              ? "Ctrl+Enter to send (IME safe) • Shift+Enter for new line • Tab to change modes • @ for files • / for agents" 
-              : "Press Enter to send • Shift+Enter for new line • Tab to change modes • @ for files • / for agents"}
+              ? "Ctrl+Enter to send • Shift+Enter for new line • Tab to change modes • @ files • / agents • * commands" 
+              : "Press Enter to send • Shift+Enter for new line • Tab to change modes • @ files • / agents • * commands"}
           </div>
           <div className={`text-xs text-gray-500 dark:text-gray-400 text-center mt-2 sm:hidden transition-opacity duration-200 ${
             isInputFocused ? 'opacity-100' : 'opacity-0'
           }`}>
             {sendByCtrlEnter 
-              ? "Ctrl+Enter to send • Tab for modes • @ for files • / for agents" 
-              : "Enter to send • Tab for modes • @ for files • / for agents"}
+              ? "Ctrl+Enter to send • Tab modes • @ files • / agents • * commands" 
+              : "Enter to send • Tab modes • @ files • / agents • * commands"}
           </div>
         </form>
       </div>
