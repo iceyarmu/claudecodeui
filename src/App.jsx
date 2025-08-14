@@ -87,6 +87,15 @@ function AppContent() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Request notification permission on app initialization
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(err => {
+        console.log('Notification permission request failed:', err);
+      });
+    }
+  }, []);
+
   useEffect(() => {
     // Fetch projects on component mount
     fetchProjects();

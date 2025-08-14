@@ -1250,6 +1250,54 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   const [cursorModel, setCursorModel] = useState(() => {
     return localStorage.getItem('cursor-model') || 'gpt-5';
   });
+  
+  // Track if window has focus
+  const [windowHasFocus, setWindowHasFocus] = useState(document.hasFocus());
+  
+  useEffect(() => {
+    const handleFocus = () => setWindowHasFocus(true);
+    const handleBlur = () => setWindowHasFocus(false);
+    
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+  
+  // Track previous loading state to detect transitions
+  const prevIsLoadingRef = useRef(isLoading);
+  
+  // Monitor loading state changes and send notification when task completes in inactive tab or unfocused window
+  useEffect(() => {
+    // Only trigger when loading changes from true to false (completion)
+    if (prevIsLoadingRef.current === true && isLoading === false) {
+      // Check if the tab is inactive (hidden) OR window doesn't have focus
+      if (document.hidden || !windowHasFocus) {
+        // Send notification that task has completed
+        if ('Notification' in window && Notification.permission === 'granted') {
+          const notification = new Notification('Task Completed', {
+            body: `Your conversation with ${provider === 'cursor' ? 'Cursor' : 'Claude'} has finished.`,
+            icon: '/favicon.png',
+            tag: 'task-complete',
+            requireInteraction: true
+          });
+          
+          // Focus the window when notification is clicked
+          notification.onclick = () => {
+            window.focus();
+            notification.close();
+          };
+        }
+      }
+    }
+    
+    // Update the previous loading state for next comparison
+    prevIsLoadingRef.current = isLoading;
+  }, [isLoading, provider, windowHasFocus]);
+  
   // When selecting a session from Sidebar, auto-switch provider to match session's origin
   useEffect(() => {
     if (selectedSession && selectedSession.__provider && selectedSession.__provider !== provider) {
