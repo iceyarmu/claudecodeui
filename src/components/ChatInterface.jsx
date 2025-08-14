@@ -2585,6 +2585,13 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
 
   // Handle / symbol detection and agent filtering
   useEffect(() => {
+    // Don't show agent dropdown if file dropdown is already open
+    if (showFileDropdown) {
+      setShowAgentDropdown(false);
+      setSlashSymbolPosition(-1);
+      return;
+    }
+    
     const textBeforeCursor = input.slice(0, cursorPosition);
     const lastSlashIndex = textBeforeCursor.lastIndexOf('/');
     
@@ -2612,10 +2619,17 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       setShowAgentDropdown(false);
       setSlashSymbolPosition(-1);
     }
-  }, [input, cursorPosition]);
+  }, [input, cursorPosition, showFileDropdown]);
 
   // Handle * symbol detection and command filtering
   useEffect(() => {
+    // Don't show command dropdown if file dropdown is already open
+    if (showFileDropdown) {
+      setShowCommandDropdown(false);
+      setAsteriskSymbolPosition(-1);
+      return;
+    }
+    
     const textBeforeCursor = input.slice(0, cursorPosition);
     const lastAsteriskIndex = textBeforeCursor.lastIndexOf('*');
     
@@ -2643,7 +2657,7 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       setShowCommandDropdown(false);
       setAsteriskSymbolPosition(-1);
     }
-  }, [input, cursorPosition]);
+  }, [input, cursorPosition, showFileDropdown]);
 
   // Handle click outside to close dropdowns
   useEffect(() => {
