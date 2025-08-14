@@ -1253,9 +1253,23 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
   
   // Track if window has focus
   const [windowHasFocus, setWindowHasFocus] = useState(document.hasFocus());
+  // Store notification references to close them later
+  const activeNotificationRef = useRef(null);
   
   useEffect(() => {
-    const handleFocus = () => setWindowHasFocus(true);
+    const handleFocus = () => {
+      setWindowHasFocus(true);
+      // Clear notification when window gains focus
+      if (activeNotificationRef.current) {
+        try {
+          activeNotificationRef.current.close();
+          activeNotificationRef.current = null;
+        } catch (e) {
+          console.log('Could not close notification:', e);
+        }
+      }
+    };
+    
     const handleBlur = () => setWindowHasFocus(false);
     
     window.addEventListener('focus', handleFocus);
@@ -1278,6 +1292,15 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
       if (document.hidden || !windowHasFocus) {
         // Send notification that task has completed
         if ('Notification' in window && Notification.permission === 'granted') {
+          // Close any existing notification before creating a new one
+          if (activeNotificationRef.current) {
+            try {
+              activeNotificationRef.current.close();
+            } catch (e) {
+              // Ignore errors closing old notification
+            }
+          }
+          
           const notification = new Notification('Task Completed', {
             body: `Your conversation with ${provider === 'cursor' ? 'Cursor' : 'Claude'} has finished.`,
             icon: '/favicon.png',
@@ -1285,10 +1308,21 @@ function ChatInterface({ selectedProject, selectedSession, ws, sendMessage, mess
             requireInteraction: true
           });
           
+          // Store the notification reference
+          activeNotificationRef.current = notification;
+          
           // Focus the window when notification is clicked
           notification.onclick = () => {
             window.focus();
             notification.close();
+            activeNotificationRef.current = null;
+          };
+          
+          // Clean up reference when notification is closed
+          notification.onclose = () => {
+            if (activeNotificationRef.current === notification) {
+              activeNotificationRef.current = null;
+            }
           };
         }
       }
